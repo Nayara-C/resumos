@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Resumos Académicos - 11º A (Groq)</title>
+    <script src="https://unpkg.com/docx@7.8.2/build/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 250px;
+        }
+
+        .info-box {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .info-box li {
+            padding: 5px 0;
+            color: #555;
+        }
+
+        .info-box li::before {
+            content: "→ ";
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .info-box small {
+            display: block;
+            margin-top: 5px;
+            color: #666;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #667eea;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .result {
+            display: none;
+            margin-top: 30px;
+            padding: 25px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            border-left: 4px solid #4caf50;
+        }
+
+        .result.active {
+            display: block;
+        }
+
+        .result h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+        }
+
+        .result-info {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            color: #555;
+        }
+
+        .result-info strong {
+            color: #2e7d32;
+        }
+
+        .result-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .result-buttons .btn {
+            margin-top: 0;
+        }
+
+        .btn-download {
+            background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);
+        }
+
+        .btn-email {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+        }
+
+        .error {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: #ffebee;
+            border-radius: 8px;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+        }
+
+        .error.active {
+            display: block;
+        }
+
+        .warning {
+            display: none;
+            margin-top: 20px;
+            padding: 25px;
+            background: #fff3e0;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+            color: #e65100;
+        }
+
+        .warning.active {
+            display: block;
+        }
+
+        .warning h3 {
+            margin-bottom: 15px;
+            color: #ff9800;
+        }
+
+        .warning ul {
+            list-style: none;
+            padding: 0;
+            margin: 10px 0;
+        }
+
+        .warning li {
+            padding: 5px 0;
+            color: #666;
+        }
+
+        .warning li::before {
+            content: "• ";
+            color: #ff9800;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+
+        .char-count {
+            text-align: right;
+            font-size: 0.9em;
+            color: #777;
+            margin-top: 5px;
+        }
+
+        .auto-info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            color: #1565c0;
+            font-size: 0.95em;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .content {
+                padding: 25px;
+            }
+
+            .result-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📚 Gerador de Resumos - 11º A</h1>
+            <p>Escola Secundária Augusto Cabrita</p>
+        </div>
+
+        <div class="content">
+            <div class="info-box">
+                <h3>📌 Disciplinas e Professores</h3>
+                <ul>
+                    <li>Biologia e Geologia → Márcio Miguel Monteiro</li>
+                    <li>Educação Física → Nuno Correia</li>
+                    <li>Filosofia → Francisco Ferreira</li>
+                    <li>Física e Química A → Dulce Bandeira</li>
+                    <li>Inglês I → Clara Soares</li>
+                    <li>Matemática A → José Correia</li>
+                    <li>Português → Maria do Céu Gonçalves</li>
+                </ul>
+            </div>
+
+            <form id="resumoForm">
+                <div class="form-group">
+                    <label for="data">📅 Data das Aulas *</label>
+                    <input type="date" id="data" required>
+                    <div class="auto-info" id="diaInfo">
+                        ℹ️ Seleciona a data - o bloco e sala serão determinados automaticamente
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="prompt">✍️ Descrição das Aulas do Dia *</label>
+                    <div class="info-box" style="margin-bottom: 10px; background: #fff3e0; border-left-color: #ff9800;">
+                        <h3 style="color: #ff9800;">💡 Dicas para escrever mais (atingir 200 palavras):</h3>
+                        <ul style="font-size: 0.9em; color: #666;">
+                            <li><strong>O que fizeram?</strong> Exercícios, leitura, vídeos, experiências, debate, apresentações...</li>
+                            <li><strong>Que matéria/tópicos?</strong> Nomes específicos (leis, teorias, obras, conceitos)</li>
+                            <li><strong>Exemplos dados?</strong> Casos práticos, situações reais mencionadas</li>
+                            <li><strong>Quantos exercícios?</strong> "Fizemos 10 exercícios", "Resolvemos 3 problemas"</li>
+                            <li><strong>Como foi feito?</strong> Individual, grupo, quadro, manual, computador...</li>
+                            <li><strong>Etapas da aula?</strong> "Começámos por...", "Depois...", "No final..."</li>
+                        </ul>
+                        <p style="margin-top: 10px; font-size: 0.85em; color: #e65100;">
+                            <strong>⚠️ Dias curtos (autoavaliação, teste, etc):</strong> Descreve o processo, critérios usados, quanto tempo demorou, como foi organizado.
+                        </p>
+                    </div>
+                    <textarea 
+                        id="prompt" 
+                        placeholder="Exemplo detalhado:
+
+Na aula de Matemática fizemos autoavaliação onde cada aluno avaliou o seu desempenho no período. Usámos uma grelha com critérios como participação, trabalhos entregues, resultados dos testes e empenho. Eu avaliei-me em cada critério de 1 a 5 e justifiquei. Depois comparámos com a avaliação da professora e discutimos as diferenças. No final preenchemos um plano de melhoria para o próximo período.
+
+Na aula de Física estudámos as leis de Newton. Começámos pela primeira lei (inércia) com exemplos do dia a dia como travagens de carro. Depois vimos a segunda lei (F=ma) e fizemos 8 exercícios de cálculo de forças. A professora mostrou um vídeo sobre colisões e explicou a terceira lei (ação-reação). No laboratório fizemos uma experiência com carrinhos para medir acelerações.
+
+Na aula de Português analisámos Os Maias. Lemos o capítulo sobre o jantar no Hotel Central e identificámos a crítica social de Eça. Discutimos as características do Realismo como objetividade e crítica de costumes. Fizemos um esquema das personagens principais e as suas relações. A professora pediu um trabalho sobre a Lisboa oitocentista para a próxima aula."
+                        required
+                        minlength="100"></textarea>
+                    <div class="char-count" id="charCount">0 caracteres</div>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    🚀 Gerar Resumos Académicos
+                </button>
+            </form>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <div class="loading-text">A gerar os teus resumos académicos...</div>
+                <p style="color: #777; margin-top: 10px;">Isto pode demorar alguns momentos</p>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="warning" id="warning">
+                <h3>⚠️ Alguns resumos têm menos de 200 palavras</h3>
+                <div id="warningContent"></div>
+                <p style="margin-top: 15px;">O que queres fazer?</p>
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button class="btn" id="continuarBtn" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);">
+                        ✓ Continuar Mesmo Assim
+                    </button>
+                    <button class="btn" id="gerarNovamenteBtn" style="background: linear-gradient(135deg, #2196f3 0%, #1565c0 100%);">
+                        🔄 Gerar Novamente
+                    </button>
+                </div>
+            </div>
+
+            <div class="result" id="result">
+                <h3>✅ Resumos Gerados com Sucesso!</h3>
+                <div class="result-info" id="resultInfo"></div>
+                <p>O teu documento Word está pronto com todos os resumos académicos.</p>
+                <div class="result-buttons">
+                    <button class="btn btn-download" id="downloadBtn">
+                        💾 Descarregar Documento
+                    </button>
+                    <button class="btn btn-email" id="emailBtn">
+                        📧 Enviar Email
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== CONFIGURAÇÃO DO UTILIZADOR =====
+        // Email do destinatário (email do teu pai)
+        const EMAIL_DESTINO = "paulo.deborja@gmail.com";
+        const NOME_UTILIZADOR = "Nayara Cassamá"; // Para assinatura do email
+        // ======================================
+
+        // HORÁRIO 11º A - Escola Augusto Cabrita
+        const HORARIO = {
+            // Segunda (1)
+            1: {
+                'Matemática A': { bloco: 'A', sala: 'A.B08' },
+                'Filosofia': { bloco: 'B', sala: 'A.B08' },
+                'Espanhol III': { bloco: 'C', sala: 'A.CS02' },
+                'Inglês I': { bloco: 'C', sala: 'A.B08' },
+                'Física e Química A': { bloco: 'D', sala: 'A.F06' }
+            },
+            // Terça (2)
+            2: {
+                'Matemática A': { bloco: 'A', sala: 'A.B08' },
+                'Português': { bloco: 'A', sala: 'A.B08' },
+                'Biologia e Geologia': { bloco: 'B', sala: 'A.D02' },
+                'Física e Química A': { bloco: 'B', sala: 'A.F02' }
+            },
+            // Quarta (3)
+            3: {
+                'Matemática A': { bloco: 'A', sala: 'A.B08' },
+                'Filosofia': { bloco: 'B', sala: 'A.C04' },
+                'Educação Física': { bloco: 'B', sala: 'A.PAV-2' },
+                'Biologia e Geologia': { bloco: 'D', sala: 'A.D08' }
+            },
+            // Quinta (4)
+            4: {
+                'Espanhol III': { bloco: 'A', sala: 'A.F10' },
+                'Inglês I': { bloco: 'A', sala: 'A.B08' },
+                'Português': { bloco: 'B', sala: 'A.B08' },
+                'Física e Química A': { bloco: 'D', sala: 'A.F06' }
+            },
+            // Sexta (5)
+            5: {
+                'Biologia e Geologia': { bloco: 'A', sala: 'A.D08' },
+                'Educação Física': { bloco: 'B', sala: 'A.PAV-2' },
+                'Português': { bloco: 'B', sala: 'A.D06' },
+                'Filosofia': { bloco: 'C', sala: 'A.D06' }
+            }
+        };
+
+        // Configuração das disciplinas e professores
+        const DISCIPLINAS = {
+            'biologia e geologia': 'Márcio Miguel Monteiro',
+            'biologia': 'Márcio Miguel Monteiro',
+            'geologia': 'Márcio Miguel Monteiro',
+            'bio-geo': 'Márcio Miguel Monteiro',
+            'educação física': 'Nuno Correia',
+            'educacao fisica': 'Nuno Correia',
+            'ed. física': 'Nuno Correia',
+            'edf': 'Nuno Correia',
+            'filosofia': 'Francisco Ferreira',
+            'física e química a': 'Dulce Bandeira',
+            'fisica e quimica a': 'Dulce Bandeira',
+            'física e química': 'Dulce Bandeira',
+            'física': 'Dulce Bandeira',
+            'fq-a': 'Dulce Bandeira',
+            'fisico-quimica': 'Dulce Bandeira',
+            'química': 'Dulce Bandeira',
+            'quimica': 'Dulce Bandeira',
+            'inglês i': 'Clara Soares',
+            'ingles i': 'Clara Soares',
+            'inglês': 'Clara Soares',
+            'ingles': 'Clara Soares',
+            'matemática a': 'José Correia',
+            'matematica a': 'José Correia',
+            'matemática': 'José Correia',
+            'matematica': 'José Correia',
+            'mat-a': 'José Correia',
+            'português': 'Maria do Céu Gonçalves',
+            'portugues': 'Maria do Céu Gonçalves',
+            'port': 'Maria do Céu Gonçalves'
+        };
+
+        let generatedDocument = null;
+        let currentResumos = null; // Armazena resumos atuais
+        let currentData = null; // Armazena data atual
+        let currentDiaSemana = null; // Armazena dia da semana atual
+
+        // Contador de caracteres
+        const promptTextarea = document.getElementById('prompt');
+        const charCount = document.getElementById('charCount');
+
+        promptTextarea.addEventListener('input', () => {
+            charCount.textContent = `${promptTextarea.value.length} caracteres`;
+        });
+
+        // Definir data de hoje por defeito
+        document.getElementById('data').valueAsDate = new Date();
+
+        // Atualizar info do dia ao selecionar data
+        document.getElementById('data').addEventListener('change', (e) => {
+            const data = new Date(e.target.value + 'T00:00:00');
+            const diaSemana = data.getDay();
+            const nomesDias = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+            
+            const diaInfo = document.getElementById('diaInfo');
+            
+            if (diaSemana === 0 || diaSemana === 6) {
+                diaInfo.innerHTML = '⚠️ Fim de semana selecionado - não há aulas';
+                diaInfo.style.background = '#fff3e0';
+                diaInfo.style.borderLeftColor = '#ff9800';
+            } else {
+                diaInfo.innerHTML = `📅 ${nomesDias[diaSemana]} - Bloco e sala serão determinados automaticamente por disciplina`;
+                diaInfo.style.background = '#e3f2fd';
+                diaInfo.style.borderLeftColor = '#2196f3';
+            }
+        });
+
+        // Submit do formulário
+        document.getElementById('resumoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = document.getElementById('data').value;
+            const prompt = document.getElementById('prompt').value;
+
+            // Obter dia da semana
+            const dataObj = new Date(data + 'T00:00:00');
+            const diaSemana = dataObj.getDay();
+
+            if (diaSemana === 0 || diaSemana === 6) {
+                alert('⚠️ Não há aulas ao fim de semana!');
+                return;
+            }
+
+            // Guardar dados atuais
+            currentData = data;
+            currentDiaSemana = diaSemana;
+
+            // Mostrar loading
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('error').classList.remove('active');
+            document.getElementById('warning').classList.remove('active');
+            document.getElementById('result').classList.remove('active');
+            document.getElementById('submitBtn').disabled = true;
+
+            try {
+                // Gerar resumos com IA
+                const resultado = await gerarResumos(prompt);
+                currentResumos = resultado.disciplinas;
+                
+                // Verificar se há avisos
+                if (resultado.avisos && resultado.avisos.length > 0) {
+                    // Mostrar aviso com opção de continuar
+                    mostrarAviso(resultado.avisos);
+                } else {
+                    // Tudo OK, criar documento
+                    await finalizarDocumento();
+                }
+
+            } catch (error) {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('error').textContent = `❌ Erro: ${error.message}`;
+                document.getElementById('error').classList.add('active');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
+
+        // Função para mostrar aviso
+        function mostrarAviso(avisos) {
+            document.getElementById('loading').classList.remove('active');
+            
+            let conteudo = '<ul>';
+            avisos.forEach(aviso => {
+                conteudo += `<li><strong>${aviso.disciplina}:</strong> ${aviso.palavras} palavras (faltam ${200 - aviso.palavras})</li>`;
+            });
+            conteudo += '</ul>';
+            
+            document.getElementById('warningContent').innerHTML = conteudo;
+            document.getElementById('warning').classList.add('active');
+            document.getElementById('submitBtn').disabled = false;
+        }
+
+        // Botão "Continuar Mesmo Assim"
+        document.getElementById('continuarBtn').addEventListener('click', async () => {
+            document.getElementById('warning').classList.remove('active');
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('loading').querySelector('.loading-text').textContent = 'A criar documento...';
+            
+            try {
+                await finalizarDocumento();
+            } catch (error) {
+                document.getElementById('loading').classList.remove('active');
+                document.getElementById('error').textContent = `❌ Erro: ${error.message}`;
+                document.getElementById('error').classList.add('active');
+            }
+        });
+
+        // Botão "Gerar Novamente"
+        document.getElementById('gerarNovamenteBtn').addEventListener('click', () => {
+            document.getElementById('warning').classList.remove('active');
+            document.getElementById('resumoForm').dispatchEvent(new Event('submit'));
+        });
+
+        // Função para finalizar e mostrar resultado
+        async function finalizarDocumento() {
+            // Criar documento Word
+            await criarDocumentoWord(currentResumos, currentData, currentDiaSemana);
+            
+            // Mostrar informações do resultado
+            const nomesDias = ['', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+            const resultInfo = document.getElementById('resultInfo');
+            
+            // Contar palavras totais
+            const totalPalavras = currentResumos.reduce((total, disc) => {
+                return total + disc.resumo.split(/\s+/).filter(p => p.length > 0).length;
+            }, 0);
+            
+            resultInfo.innerHTML = `
+                <strong>📅 Data:</strong> ${formatarData(currentData)} (${nomesDias[currentDiaSemana]})<br>
+                <strong>📚 Disciplinas:</strong> ${currentResumos.length}<br>
+                <strong>📝 Total palavras:</strong> ${totalPalavras} palavras (mínimo 200 por disciplina)
+            `;
+            
+            // Mostrar resultado
+            document.getElementById('loading').classList.remove('active');
+            document.getElementById('result').classList.add('active');
+            document.getElementById('submitBtn').disabled = false;
+            
+            // Restaurar texto do loading
+            document.getElementById('loading').querySelector('.loading-text').textContent = 'A gerar os teus resumos académicos...';
+        }
+
+        // Botão de download
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            if (generatedDocument) {
+                const blob = new Blob([generatedDocument], { 
+                    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' 
+                });
+                const data = document.getElementById('data').value;
+                const fileName = `${formatarNomeFicheiro(data)}.docx`;
+                saveAs(blob, fileName);
+            }
+        });
+
+        // Botão de enviar email
+        document.getElementById('emailBtn').addEventListener('click', () => {
+            if (!generatedDocument) {
+                alert('❌ Erro: Documento não gerado!');
+                return;
+            }
+
+            if (EMAIL_DESTINO === "email.do.pai@exemplo.com") {
+                alert('⚠️ Email de destino não configurado!\n\nEdita EMAIL_DESTINO no código com o email do teu pai.');
+                return;
+            }
+
+            // Preparar dados do email
+            const data = document.getElementById('data').value;
+            const dataFormatada = formatarData(data);
+            
+            const assunto = `Resumo do dia ${dataFormatada}`;
+            const corpo = `Boa tarde, papá
+
+Venho por este meio enviar o resumo do dia ${dataFormatada}, passo a expor.
+
+O documento encontra-se em anexo.
+
+Com os melhores cumprimentos,
+${NOME_UTILIZADOR}`;
+
+            // Codificar para URL
+            const mailtoLink = `mailto:${EMAIL_DESTINO}?subject=${encodeURIComponent(assunto)}&body=${encodeURIComponent(corpo)}`;
+            
+            // Abrir cliente de email
+            window.location.href = mailtoLink;
+            
+            // Instruções para o utilizador
+            setTimeout(() => {
+                alert('📧 Email preparado!\n\n1. O teu cliente de email vai abrir\n2. ANEXA o documento Word que descarregaste\n3. Clica "Enviar"\n\n✅ Pronto!');
+            }, 500);
+        });
+
+        async function gerarResumos(prompt) {
+            const apiKey = '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';
+
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.3-70b-versatile',
+                    messages: [{
+                        role: 'user',
+                        content: `ATENÇÃO CRÍTICA: 
+1. Cada resumo DEVE ter NO MÍNIMO 200 PALAVRAS (OBRIGATÓRIO)
+2. Escreve em PORTUGUÊS EUROPEU (de Portugal) - NUNCA uses português brasileiro!
+3. Na aula de Inglês I podes usar inglês para termos da matéria
+4. USA O GÉNERO CORRETO quando falares dos professores (ver lista abaixo)
+
+EXEMPLOS PORTUGUÊS EUROPEU:
+✅ experiência (não "experimento")
+✅ autocarro (não "ônibus") 
+✅ telemóvel (não "celular")
+
+És um assistente que ajuda a criar resumos de aulas escolares com tom natural de aluno real português.
+
+REGRAS ABSOLUTAS:
+
+TAMANHO DO RESUMO:
+- MÍNIMO ABSOLUTO: 200 PALAVRAS por disciplina
+- Se estás abaixo de 200 palavras, PARA e ADICIONA MAIS CONTEÚDO
+- **ESTRATÉGIAS OBRIGATÓRIAS PARA ATINGIR 200 PALAVRAS:**
+  
+  1. **EXPLICA OS CONCEITOS EM PROFUNDIDADE:**
+     - Não digas só "estudámos X", explica o que é X em 2-3 frases
+     - Dá a definição completa
+     - Explica como funciona passo a passo
+     
+  2. **ADICIONA DETALHES DOS EXERCÍCIOS:**
+     - Não digas só "fizemos exercícios"
+     - Diz quantos exercícios (número aproximado)
+     - Dá exemplos concretos de 1-2 exercícios
+     - Descreve que tipo de cálculos ou processos
+     
+  3. **EXPLICA O PORQUÊ E PARA QUÊ:**
+     - Porque é que este conceito é importante
+     - Onde se aplica na prática
+     - Para que serve no dia a dia ou noutras matérias
+     
+  4. **DESCREVE O PROCESSO DA AULA:**
+     - Como começou (revisão, introdução nova matéria)
+     - O que fizeram a meio (explicação, prática)
+     - Como terminou (trabalhos, resumo)
+     
+  5. **RELACIONA COM OUTROS CONCEITOS:**
+     - Liga com matéria anterior
+     - Menciona pré-requisitos
+     - Fala de aplicações futuras
+
+- **NUNCA** entregues um resumo curto - EXPANDE sempre até atingir o mínimo
+- Se chegas a 180-190 palavras, continua a adicionar mais 1-2 frases de contexto ou exemplos
+
+INÍCIO DO TEXTO:
+- Começa SEMPRE com: "Hoje na aula de [disciplina]..."
+- NÃO uses exatamente as palavras do aluno, adapta para este formato
+- Exemplo: Se o aluno diz "estudámos derivadas", escreve "Hoje na aula de Matemática A estudámos derivadas..."
+
+PROFESSORES E GÉNERO CORRETO:
+Quando mencionares professores, USA O GÉNERO CORRETO:
+- Biologia e Geologia → Márcio Miguel Monteiro (MASCULINO) → "o professor"
+- Educação Física → Nuno Correia (MASCULINO) → "o professor"
+- Filosofia → Francisco Ferreira (MASCULINO) → "o professor"
+- Física e Química A → Dulce Bandeira (FEMININO) → "a professora"
+- Inglês I → Clara Soares (FEMININO) → "a professora"
+- Matemática A → José Correia (MASCULINO) → "o professor"
+- Português → Maria do Céu Gonçalves (FEMININO) → "a professora"
+
+IMPORTANTE: Verifica sempre o género antes de escrever "o professor" ou "a professora"!
+
+IDIOMA E LÍNGUA:
+- Escreve EXCLUSIVAMENTE em **PORTUGUÊS EUROPEU (de Portugal)**
+- **NUNCA uses PORTUGUÊS BRASILEIRO** - é muito importante!
+- **EXCEPÇÃO: Na disciplina de Inglês I, podes usar palavras/expressões em inglês quando forem parte da matéria (ex: "Present Perfect", "have/has + past participle", vocabulário ensinado)**
+- Para TODAS as outras disciplinas: NUNCA uses palavras em inglês
+
+PORTUGUÊS EUROPEU vs BRASILEIRO (CRÍTICO):
+
+❌ NUNCA USES (Brasileiro):
+• experimento → ✅ experiência
+• trem → ✅ comboio
+• ônibus → ✅ autocarro
+• celular → ✅ telemóvel
+• time (equipe) → ✅ equipa
+• tela → ✅ ecrã
+• mouse → ✅ rato
+• deletar → ✅ apagar/eliminar
+• salvar → ✅ guardar
+• arquivo → ✅ ficheiro
+• pasta → ✅ pasta (OK - esta é igual)
+• legal (no sentido de "fixe") → ✅ fixe/giro
+• bacana → ✅ fixe/giro/porreiro
+
+CONTEXTO ESCOLAR ESPECÍFICO:
+• matéria (no sentido de conteúdo) → ✅ matéria (OK em contexto escolar)
+• prova → ✅ teste/exame
+• nota → ✅ nota (OK)
+• colégio → ✅ escola/colégio (ambos OK)
+
+✅ SEMPRE USA VOCABULÁRIO DE PORTUGAL
+
+Se tiveres dúvida sobre uma palavra, usa a versão mais formal e europeia.
+
+TOM E ESTILO:
+- Linguagem simples, natural, informal (mas não infantil)
+- Frases curtas a médias
+- Tom normal de aluno a descrever o que fez
+- **PURA DESCRIÇÃO factual** do que aconteceu na aula
+- **SEM AVALIAÇÃO** - não digas se foi bom, mau, útil, interessante, difícil, fácil
+- Sem palavras técnicas exageradas
+- Sem frases demasiado perfeitas ou elaboradas
+
+DESCRIÇÃO vs AVALIAÇÃO (CRÍTICO):
+❌ AVALIAÇÃO: "A aula foi muito útil"
+✅ DESCRIÇÃO: "Na aula estudámos X e fizemos Y"
+
+❌ AVALIAÇÃO: "Foi estimulante aprender sobre..."
+✅ DESCRIÇÃO: "Aprendemos sobre... e vimos exemplos de..."
+
+❌ AVALIAÇÃO: "Esta matéria é importante"
+✅ DESCRIÇÃO: "Esta matéria serve para calcular..."
+
+❌ AVALIAÇÃO: "Foi interessante descobrir que..."
+✅ DESCRIÇÃO: "Vimos que..."
+
+❌ AVALIAÇÃO: "Ajudou-me a compreender melhor"
+✅ DESCRIÇÃO: "Fizemos exercícios sobre..."
+
+REGRA DE OURO: Se estás a dar opinião sobre a aula, PARA e reescreve só com factos!
+
+O QUE NUNCA FAZER:
+❌ Português brasileiro ("experimento", "trem", "ônibus", "celular") - SÓ português europeu!
+❌ Palavras em inglês nas outras disciplinas (exceto na aula de Inglês I onde é normal!)
+❌ Género errado dos professores (verifica a lista acima!)
+❌ Opiniões sobre dificuldade ("foi fácil", "foi difícil", "foi complicado")
+❌ Avaliações da aula ("foi útil", "foi estimulante", "foi proveitoso", "foi enriquecedor")
+❌ Avaliações do professor ("explicou bem", "explicou mal", "foi claro")
+❌ Apreciações críticas de qualquer tipo
+❌ Frases típicas de IA:
+   • "foi muito interessante"
+   • "foi produtivo"
+   • "contribuiu para"
+   • "a aula foi útil"
+   • "foi estimulante"
+   • "foi importante"
+   • "ajudou a compreender"
+   • "permitiu desenvolver"
+   • "foi essencial"
+❌ Conclusões separadas tipo "no final percebi que...", "aprendi que...", "compreendi a importância..."
+❌ Tom demasiado formal ou académico
+❌ Tom demasiado infantil ou com erros propositados
+
+LEMBRA-TE: És um aluno a DESCREVER o que fizeste, NÃO a AVALIAR se foi bom/mau/útil/interessante!
+
+O QUE FAZER:
+✅ Descrever factualmente o que foi feito na aula
+✅ Explicar o que são os conceitos (dentro da descrição natural)
+✅ Listar exercícios/atividades feitas
+✅ Mencionar exemplos dados
+✅ Integrar a "conclusão" naturalmente na explicação (não como secção separada)
+✅ **QUANDO FALTAR CONTEÚDO: EXPANDE AS EXPLICAÇÕES**
+  - Em vez de só dizer "estudámos X", explica o que é X em detalhe
+  - Dá exemplos práticos de onde se aplica
+  - Explica como funciona ou como se calcula
+  - Relaciona com coisas do dia a dia
+  - Menciona a importância ou utilidade
+  - Descreve os passos de um processo
+
+EXEMPLO DE EXPANSÃO:
+❌ CURTO: "Estudámos a fórmula resolvente"
+✅ EXPANDIDO: "Estudámos a fórmula resolvente, que é x = (-b ± √(b² - 4ac)) / 2a e permite encontrar as raízes de qualquer equação do segundo grau. Esta fórmula funciona porque deriva do processo de completar o quadrado aplicado à forma geral ax² + bx + c = 0. O discriminante (b² - 4ac) é a parte mais importante porque indica quantas soluções existem: se for positivo há duas soluções reais diferentes, se for zero há uma solução dupla, e se for negativo não há soluções reais mas sim complexas"
+
+EXEMPLO DE COMO ATINGIR 200 PALAVRAS:
+
+**VERSÃO CURTA (150 palavras - INSUFICIENTE ❌):**
+"Hoje na aula de Matemática A estudámos equações do segundo grau. Vimos a fórmula resolvente e aprendemos sobre o discriminante. Fizemos exercícios de aplicação da fórmula. Alguns exercícios eram mais fáceis e outros mais difíceis. No final tivemos trabalho de casa."
+
+**COMO EXPANDIR PARA 200+ PALAVRAS (✅):**
+ADICIONA:
+- Explicação detalhada da fórmula (o que é, como funciona)
+- Definição completa do discriminante (o que indica, casos diferentes)
+- QUANTOS exercícios fizeram (número aproximado)
+- EXEMPLOS concretos de 1-2 exercícios
+- COMO era o processo (passo a passo)
+- PARA QUE serve esta matéria (aplicações práticas)
+
+**VERSÃO EXPANDIDA (210 palavras - CORRETO ✅):**
+"Hoje na aula de Matemática A estudámos equações do segundo grau, que são equações na forma ax² + bx + c = 0 onde o coeficiente a não pode ser zero. Trabalhámos a fórmula resolvente x = (-b ± √(b² - 4ac)) / 2a que permite encontrar as raízes de qualquer equação deste tipo. Esta fórmula funciona porque deriva do método de completar o quadrado aplicado à forma geral.
+
+Aprendemos sobre o discriminante, que é a parte b² - 4ac dentro da raiz quadrada. O professor explicou que o discriminante é fundamental porque determina quantas soluções reais existem: se for positivo há duas soluções diferentes, se for zero há uma solução dupla, e se for negativo não há soluções reais no conjunto dos números reais mas sim soluções complexas.
+
+Fizemos cerca de doze exercícios de aplicação. Nos primeiros, as equações já estavam na forma padrão e só tínhamos que substituir os valores na fórmula. Por exemplo, num exercício tínhamos x² - 5x + 6 = 0 e calculámos que as raízes eram 2 e 3. Depois fizemos exercícios mais complexos onde primeiro era preciso reorganizar a equação. No final o professor deixou cinco exercícios para trabalho de casa sobre problemas práticos como calcular dimensões de terrenos."
+
+REPARA: Diz "o professor" porque Matemática A é José Correia (masculino). Se fosse Português seria "a professora" (Maria do Céu Gonçalves - feminino).
+
+EXEMPLO DE INGLÊS I (com termos em inglês - CORRETO):
+"Hoje na aula de Inglês I trabalhámos o Present Perfect. A professora explicou a estrutura have/has + past participle e quando usar este tempo verbal. Vimos que se usa para ações que começaram no passado e continuam no presente, como 'I have lived here for 5 years', e também para experiências de vida sem mencionar quando, tipo 'I have been to Paris'. Fizemos exercícios onde tínhamos que escolher entre Past Simple e Present Perfect. Um exemplo era 'I ___ (visit) London last year' que é Past Simple porque tem 'last year'. Outro era 'She ___ (never/eat) sushi' que é Present Perfect porque é experiência sem tempo específico. No final ouvimos um diálogo onde duas pessoas falavam sobre viagens e tivemos que identificar todas as frases em Present Perfect."
+
+REPARA: Usa termos em inglês (Present Perfect, past participle, have/has) porque é aula de INGLÊS e faz parte da matéria!
+
+ESTRUTURA DO TEXTO:
+- Escreve em parágrafos naturais (mínimo 3 linhas cada)
+- Separa parágrafos com linha em branco (\\n\\n)
+- Integra tudo de forma fluida - não separes em "introdução, desenvolvimento, conclusão"
+- A explicação do que é a matéria deve fluir naturalmente com a descrição
+
+EXEMPLO DO TOM CORRETO (200+ palavras):
+"Hoje na aula de Matemática A trabalhámos equações do segundo grau e a aplicação da fórmula resolvente. Começámos por relembrar a estrutura geral ax² + bx + c = 0 e as diferentes formas que estas equações podem ter. A professora explicou que o coeficiente a nunca pode ser zero, senão deixa de ser uma equação do segundo grau e passa a ser do primeiro grau.
+
+Depois avançámos para a fórmula resolvente, que é x = (-b ± √(b² - 4ac)) / 2a. Esta fórmula permite encontrar as raízes de qualquer equação do segundo grau e funciona porque deriva do método de completar o quadrado aplicado à forma geral. O discriminante, que é a parte b² - 4ac dentro da raiz quadrada, é fundamental porque determina quantas soluções reais a equação tem. Se o discriminante for positivo, existem duas soluções reais diferentes. Se for zero, existe apenas uma solução real (ou duas iguais). Se for negativo, não há soluções reais mas sim soluções complexas. A professora explicou que isto acontece porque não se pode tirar a raiz quadrada de um número negativo no conjunto dos números reais.
+
+Fizemos cerca de quinze exercícios práticos do manual, começando pelos mais simples onde as equações já vinham na forma padrão e só tínhamos de aplicar a fórmula diretamente. Depois fizemos equações que precisavam de ser reorganizadas primeiro, com termos dos dois lados da igualdade. Alguns exercícios pediam para calcular as raízes e depois fazer a verificação, substituindo os valores encontrados na equação original para confirmar que davam zero.
+
+No final da aula trabalhámos problemas de aplicação prática. Um exercício pedia para calcular as dimensões de um retângulo sabendo que a área era 24 cm² e que o comprimento era o dobro da largura mais 2 cm. Outro problema envolvia calcular a altura máxima de um projétil lançado verticalmente. A professora deixou mais exercícios para trabalho de casa."
+
+NOTA IMPORTANTE: Repara como as explicações estão expandidas naturalmente (o que é o discriminante, como funciona, porquê, exemplos concretos de exercícios). Esta expansão é essencial para atingir as 200 palavras mantendo o tom natural de aluno. SEMPRE que não tiveres conteúdo suficiente, EXPANDE as explicações desta forma.
+
+DISCIPLINAS VÁLIDAS:
+- Biologia e Geologia
+- Educação Física
+- Filosofia
+- Física e Química A
+- Inglês I
+- Matemática A
+- Português
+
+⚠️ LEMBRETE CRÍTICO ANTES DE GERAR:
+- Cada resumo DEVE ter 200+ palavras
+- Escreve em PORTUGUÊS EUROPEU (não brasileiro! "experiência" não "experimento")
+- Inglês só permitido na aula de Inglês I para termos da matéria
+- USA O GÉNERO CORRETO dos professores (verifica a lista acima!)
+- **NÃO AVALIES A AULA** - só descreve o que fizeram (sem "foi útil", "foi interessante", "foi estimulante")
+- Se o teu resumo tem menos de 200 palavras, ADICIONA mais explicações, detalhes, exemplos
+- Usa as estratégias acima para expandir
+- Nunca entregues um resumo com menos de 200 palavras
+
+ÚLTIMA VERIFICAÇÃO: Lê o teu resumo e elimina TODAS as palavras de avaliação (útil, interessante, estimulante, importante, bom, etc.) e TODAS as palavras brasileiras (experimento→experiência, trem→comboio, etc.)
+
+FORMATO DE RESPOSTA (JSON):
+{
+  "disciplinas": [
+    {
+      "nome": "Nome exato da disciplina",
+      "resumo": "Hoje na aula de [disciplina] fizemos isto e aquilo. Primeira frase de contexto.\\n\\nSegundo parágrafo com mais detalhes e explicações integradas.\\n\\nTerceiro parágrafo continuando naturalmente."
+    }
+  ]
+}
+
+EXEMPLO CONCRETO DE JSON VÁLIDO:
+{
+  "disciplinas": [
+    {
+      "nome": "Matemática A",
+      "resumo": "Hoje na aula de Matemática A trabalhámos equações do segundo grau. Começámos por relembrar a estrutura ax² + bx + c = 0 e depois aplicámos a fórmula resolvente.\\n\\nFizemos vários exercícios práticos onde tivemos de calcular as raízes. A fórmula usa o discriminante para determinar quantas soluções existem.\\n\\nNo final da aula resolvemos problemas mais complexos que combinavam diferentes conceitos."
+    }
+  ]
+}
+
+IMPORTANTE SOBRE O JSON:
+- Usa \\n\\n (dois backslash-n) para separar parágrafos
+- NÃO uses quebras de linha reais dentro das strings JSON
+- Mantém tudo numa única linha por string
+- Certifica-te que o JSON é válido
+
+TEXTO DAS AULAS FORNECIDO PELO ALUNO:
+${prompt}
+
+RESPONDE APENAS COM O JSON VÁLIDO, sem texto adicional antes ou depois.`
+                    }],
+                    temperature: 0.3,
+                    max_tokens: 20000
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                let errorMsg = 'Erro na API do Groq';
+                
+                try {
+                    const error = JSON.parse(errorText);
+                    errorMsg = error.error?.message || errorText;
+                } catch (e) {
+                    errorMsg = errorText;
+                }
+                
+                throw new Error(errorMsg);
+            }
+
+            const data = await response.json();
+            
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                throw new Error('Resposta inválida da API');
+            }
+
+            let jsonText = data.choices[0].message.content.trim();
+            
+            // Remover markdown se existir
+            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            
+            // Limpar caracteres de controle problemáticos (exceto \n e \t que são válidos)
+            // Substitui quebras de linha literais por \n dentro de strings JSON
+            jsonText = jsonText.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
+            
+            let result;
+            try {
+                result = JSON.parse(jsonText);
+            } catch (parseError) {
+                // Se falhar, tenta limpar mais agressivamente
+                console.error('JSON original:', jsonText);
+                
+                // Remove todos os caracteres de controle exceto espaços
+                jsonText = jsonText.replace(/[\x00-\x09\x0B-\x1F\x7F]/g, '');
+                
+                try {
+                    result = JSON.parse(jsonText);
+                } catch (secondError) {
+                    throw new Error('Não foi possível processar a resposta da IA. Tenta novamente.');
+                }
+            }
+            
+            // Validar estrutura básica
+            if (!result.disciplinas || !Array.isArray(result.disciplinas)) {
+                throw new Error('Resposta JSON inválida');
+            }
+            
+            // Verificar palavras (mas não dar erro, apenas retornar info)
+            const avisos = [];
+            result.disciplinas.forEach(disc => {
+                const palavras = disc.resumo.split(/\s+/).filter(p => p.length > 0);
+                if (palavras.length < 200) {
+                    avisos.push({
+                        disciplina: disc.nome,
+                        palavras: palavras.length
+                    });
+                }
+            });
+            
+            // Retornar resultado com avisos
+            return { disciplinas: result.disciplinas, avisos: avisos };
+        }
+
+        function obterProfessor(disciplina) {
+            const disciplinaLower = disciplina.toLowerCase();
+            return DISCIPLINAS[disciplinaLower] || 'Professor não identificado';
+        }
+
+        function obterBlocoESala(disciplina, diaSemana) {
+            const disciplinaLower = disciplina.toLowerCase();
+            
+            // Normalizar nome da disciplina
+            let disciplinaNormalizada = disciplina;
+            
+            if (disciplinaLower.includes('biologia') || disciplinaLower.includes('geologia')) {
+                disciplinaNormalizada = 'Biologia e Geologia';
+            } else if (disciplinaLower.includes('física') || disciplinaLower.includes('química') || disciplinaLower.includes('fq')) {
+                disciplinaNormalizada = 'Física e Química A';
+            } else if (disciplinaLower.includes('matemática') || disciplinaLower.includes('mat')) {
+                disciplinaNormalizada = 'Matemática A';
+            } else if (disciplinaLower.includes('inglês') || disciplinaLower.includes('ingles')) {
+                disciplinaNormalizada = 'Inglês I';
+            } else if (disciplinaLower.includes('português') || disciplinaLower.includes('portugues') || disciplinaLower.includes('port')) {
+                disciplinaNormalizada = 'Português';
+            } else if (disciplinaLower.includes('educação física') || disciplinaLower.includes('educacao fisica') || disciplinaLower.includes('edf')) {
+                disciplinaNormalizada = 'Educação Física';
+            } else if (disciplinaLower.includes('filosofia')) {
+                disciplinaNormalizada = 'Filosofia';
+            }
+
+            // Obter do horário
+            if (HORARIO[diaSemana] && HORARIO[diaSemana][disciplinaNormalizada]) {
+                let { sala } = HORARIO[diaSemana][disciplinaNormalizada];
+                
+                // Remover "A." do início da sala (ex: "A.D02" → "D02")
+                if (sala && sala.startsWith('A.')) {
+                    sala = sala.substring(2);
+                }
+                
+                // Extrair bloco da primeira letra/caracteres da sala
+                // Ex: "D02" → bloco "D", "F06" → bloco "F", "PAV-2" → bloco "PAV"
+                let bloco = '';
+                if (sala) {
+                    // Se começa com PAV, CS ou BS (blocos especiais), usa os primeiros caracteres
+                    if (sala.startsWith('PAV') || sala.startsWith('CS') || sala.startsWith('BS')) {
+                        bloco = sala.match(/^[A-Z]+/)[0];
+                    } else {
+                        // Caso normal: primeira letra (D02 → D, F06 → F)
+                        bloco = sala.charAt(0);
+                    }
+                }
+                
+                return { bloco, sala };
+            }
+
+            // Default se não encontrar
+            return { bloco: '—', sala: '—' };
+        }
+
+        async function criarDocumentoWord(resumos, data, diaSemana) {
+            const { Document, Paragraph, Table, TableCell, TableRow, WidthType, BorderStyle, Packer } = docx;
+
+            const sections = [];
+
+            resumos.forEach((disciplina, index) => {
+                const professor = obterProfessor(disciplina.nome);
+                const { bloco, sala } = obterBlocoESala(disciplina.nome, diaSemana);
+                const dataFormatada = formatarData(data);
+
+                // Criar tabela
+                const table = new Table({
+                    width: {
+                        size: 100,
+                        type: WidthType.PERCENTAGE
+                    },
+                    borders: {
+                        top: { style: BorderStyle.SINGLE, size: 1 },
+                        bottom: { style: BorderStyle.SINGLE, size: 1 },
+                        left: { style: BorderStyle.SINGLE, size: 1 },
+                        right: { style: BorderStyle.SINGLE, size: 1 },
+                        insideHorizontal: { style: BorderStyle.SINGLE, size: 1 },
+                        insideVertical: { style: BorderStyle.SINGLE, size: 1 }
+                    },
+                    rows: [
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ text: 'Disciplina:', bold: true })],
+                                    width: { size: 35, type: WidthType.PERCENTAGE }
+                                }),
+                                new TableCell({
+                                    children: [new Paragraph(disciplina.nome)],
+                                    width: { size: 65, type: WidthType.PERCENTAGE }
+                                })
+                            ]
+                        }),
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ text: 'Data:', bold: true })]
+                                }),
+                                new TableCell({
+                                    children: [new Paragraph(dataFormatada)]
+                                })
+                            ]
+                        }),
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ text: 'Nome do professor:', bold: true })]
+                                }),
+                                new TableCell({
+                                    children: [new Paragraph(professor)]
+                                })
+                            ]
+                        }),
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ text: 'Bloco:', bold: true })]
+                                }),
+                                new TableCell({
+                                    children: [new Paragraph(bloco)]
+                                })
+                            ]
+                        }),
+                        new TableRow({
+                            children: [
+                                new TableCell({
+                                    children: [new Paragraph({ text: 'Sala:', bold: true })]
+                                }),
+                                new TableCell({
+                                    children: [new Paragraph(sala)]
+                                })
+                            ]
+                        })
+                    ]
+                });
+
+                sections.push(table);
+                sections.push(new Paragraph({ text: '' })); // Espaço após tabela
+
+                // Adicionar resumo em parágrafos
+                const paragrafos = disciplina.resumo.split('\n\n').filter(p => p.trim());
+                paragrafos.forEach((paragrafo, idx) => {
+                    sections.push(new Paragraph({
+                        text: paragrafo.trim(),
+                        spacing: { 
+                            after: idx < paragrafos.length - 1 ? 200 : 100 // Mais espaço entre parágrafos
+                        }
+                    }));
+                });
+
+                // Espaço entre disciplinas
+                if (index < resumos.length - 1) {
+                    sections.push(new Paragraph({ text: '' }));
+                    sections.push(new Paragraph({ text: '' }));
+                }
+            });
+
+            const doc = new Document({
+                sections: [{
+                    properties: {},
+                    children: sections
+                }],
+                styles: {
+                    default: {
+                        document: {
+                            run: {
+                                font: 'Segoe UI',
+                                size: 24 // 12pt = 24 half-points
+                            }
+                        }
+                    }
+                }
+            });
+
+            generatedDocument = await Packer.toBlob(doc);
+        }
+
+        function formatarData(dataISO) {
+            const [ano, mes, dia] = dataISO.split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+
+        function formatarNomeFicheiro(dataISO) {
+            const meses = [
+                'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+                'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'
+            ];
+            
+            const [ano, mes, dia] = dataISO.split('-');
+            const mesNome = meses[parseInt(mes) - 1];
+            
+            return `Resumo do dia ${parseInt(dia)} de ${mesNome} de ${ano}`;
+        }
+    </script>
+</body>
+</html>
