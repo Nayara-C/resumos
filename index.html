@@ -695,20 +695,14 @@ ${NOME_UTILIZADOR}`;
             }, 500);
         });
 
-        async function gerarResumos(prompt) {
-            const apiKey = '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';
-
-            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'llama-3.3-70b-versatile',
-                    messages: [{
-                        role: 'user',
-                        content: `ATENÇÃO CRÍTICA: 
+async function gerarResumos(prompt) {
+    const response = await fetch('https://meu-backend-blush.vercel.app/api', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            prompt: `ATENÇÃO CRÍTICA: 
 1. Cada resumo DEVE ter NO MÍNIMO 200 PALAVRAS (OBRIGATÓRIO)
 2. Escreve em PORTUGUÊS EUROPEU (de Portugal) - NUNCA uses português brasileiro!
 3. Na aula de Inglês I podes usar inglês para termos da matéria
@@ -972,78 +966,49 @@ TEXTO DAS AULAS FORNECIDO PELO ALUNO:
 ${prompt}
 
 RESPONDE APENAS COM O JSON VÁLIDO, sem texto adicional antes ou depois.`
-                    }],
-                    temperature: 0.3,
-                    max_tokens: 20000
-                })
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Erro na API');
+    }
+
+    const data = await response.json();
+
+    let jsonText = data.choices?.[0]?.message?.content?.trim();
+
+    if (!jsonText) {
+        throw new Error('Resposta inválida da API');
+    }
+
+    jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+    let result;
+    try {
+        result = JSON.parse(jsonText);
+    } catch (e) {
+        throw new Error('JSON inválido vindo da API');
+    }
+
+    if (!result.disciplinas || !Array.isArray(result.disciplinas)) {
+        throw new Error('Estrutura inválida');
+    }
+
+    const avisos = [];
+
+    result.disciplinas.forEach(d => {
+        const palavras = d.resumo.split(/\s+/).length;
+        if (palavras < 200) {
+            avisos.push({
+                disciplina: d.nome,
+                palavras
             });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                let errorMsg = 'Erro na API do Groq';
-                
-                try {
-                    const error = JSON.parse(errorText);
-                    errorMsg = error.error?.message || errorText;
-                } catch (e) {
-                    errorMsg = errorText;
-                }
-                
-                throw new Error(errorMsg);
-            }
-
-            const data = await response.json();
-            
-            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                throw new Error('Resposta inválida da API');
-            }
-
-            let jsonText = data.choices[0].message.content.trim();
-            
-            // Remover markdown se existir
-            jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            
-            // Limpar caracteres de controle problemáticos (exceto \n e \t que são válidos)
-            // Substitui quebras de linha literais por \n dentro de strings JSON
-            jsonText = jsonText.replace(/\r\n/g, '\\n').replace(/\r/g, '\\n');
-            
-            let result;
-            try {
-                result = JSON.parse(jsonText);
-            } catch (parseError) {
-                // Se falhar, tenta limpar mais agressivamente
-                console.error('JSON original:', jsonText);
-                
-                // Remove todos os caracteres de controle exceto espaços
-                jsonText = jsonText.replace(/[\x00-\x09\x0B-\x1F\x7F]/g, '');
-                
-                try {
-                    result = JSON.parse(jsonText);
-                } catch (secondError) {
-                    throw new Error('Não foi possível processar a resposta da IA. Tenta novamente.');
-                }
-            }
-            
-            // Validar estrutura básica
-            if (!result.disciplinas || !Array.isArray(result.disciplinas)) {
-                throw new Error('Resposta JSON inválida');
-            }
-            
-            // Verificar palavras (mas não dar erro, apenas retornar info)
-            const avisos = [];
-            result.disciplinas.forEach(disc => {
-                const palavras = disc.resumo.split(/\s+/).filter(p => p.length > 0);
-                if (palavras.length < 200) {
-                    avisos.push({
-                        disciplina: disc.nome,
-                        palavras: palavras.length
-                    });
-                }
-            });
-            
-            // Retornar resultado com avisos
-            return { disciplinas: result.disciplinas, avisos: avisos };
         }
+    });
+
+    return { disciplinas: result.disciplinas, avisos };
+}
 
         function obterProfessor(disciplina) {
             const disciplinaLower = disciplina.toLowerCase();
